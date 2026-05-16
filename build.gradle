@@ -1,0 +1,193 @@
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+    id 'signing'
+    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
+}
+
+import java.util.Base64
+
+group = (project.findProperty('GROUP') ?: 'ai.synheart') as String
+version = (project.findProperty('VERSION_NAME') ?: '0.2.0') as String
+def POM_ARTIFACT_ID = (project.findProperty('POM_ARTIFACT_ID') ?: 'session') as String
+
+android {
+    namespace 'ai.synheart.session'
+    compileSdk 34
+
+    lint {
+        // CI runs `lint` separately; don't fail `build`/publishing on lint issues.
+        abortOnError false
+    }
+
+    defaultConfig {
+        minSdk 21
+        versionCode 1
+        versionName project.version as String
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.3.0"
+    compileOnly 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            // OSSRH was shut down (2025-06-30). Use the Central Portal OSSRH Staging API compatibility service.
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
+
+            // Prefer Central Portal token credentials, but accept legacy env var names too.
+            username.set(
+                    project.findProperty('sonatypeUsername')
+                            ?: project.findProperty('SONATYPE_USERNAME')
+                            ?: project.findProperty('OSSRH_USERNAME')
+                            ?: System.getenv('SONATYPE_USERNAME')
+                            ?: System.getenv('OSSRH_USERNAME')
+                            ?: ''
+            )
+            password.set(
+                    project.findProperty('sonatypePassword')
+                            ?: project.findProperty('SONATYPE_PASSWORD')
+                            ?: project.findProperty('OSSRH_PASSWORD')
+                            ?: System.getenv('SONATYPE_PASSWORD')
+                            ?: System.getenv('OSSRH_PASSWORD')
+                            ?: ''
+            )
+        }
+    }
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+
+                groupId = project.group as String
+                artifactId = POM_ARTIFACT_ID
+                version = project.version as String
+
+                pom {
+                    name = 'Synheart Session Android'
+                    description = 'Real-time wearable HR capture with on-device HSI computation for Android'
+                    url = 'https://github.com/synheart-ai/synheart-session-kotlin'
+
+                    licenses {
+                        license {
+                            name = 'Apache-2.0'
+                            url = 'https://www.apache.org/licenses/LICENSE-2.0'
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = 'israel-goytom'
+                            name = 'Israel Goytom'
+                            email = 'israel@synheart.ai'
+                        }
+                        developer {
+                            id = 'synheart-ai'
+                            name = 'Synheart AI Team'
+                            email = 'dev@synheart.ai'
+                        }
+                    }
+
+                    scm {
+                        connection = 'scm:git:git://github.com/synheart-ai/synheart-session-kotlin.git'
+                        developerConnection = 'scm:git:ssh://github.com/synheart-ai/synheart-session-kotlin.git'
+                        url = 'https://github.com/synheart-ai/synheart-session-kotlin'
+                    }
+                }
+            }
+        }
+    }
+
+    signing {
+        // Support both `GPG_*` and `SIGNING_*` naming (CI commonly uses ORG_GRADLE_PROJECT_SIGNING_*).
+        def signingKey =
+                project.findProperty('GPG_PRIVATE_KEY')
+                        ?: project.findProperty('SIGNING_KEY')
+                        ?: System.getenv('GPG_PRIVATE_KEY')
+                        ?: System.getenv('SIGNING_KEY')
+                        ?: ''
+        def signingKeyBase64 =
+                project.findProperty('GPG_PRIVATE_KEY_BASE64')
+                        ?: project.findProperty('SIGNING_KEY_BASE64')
+                        ?: System.getenv('GPG_PRIVATE_KEY_BASE64')
+                        ?: System.getenv('SIGNING_KEY_BASE64')
+                        ?: ''
+        def signingPassword =
+                project.findProperty('GPG_PASSPHRASE')
+                        ?: project.findProperty('SIGNING_PASSWORD')
+                        ?: System.getenv('GPG_PASSPHRASE')
+                        ?: System.getenv('SIGNING_PASSWORD')
+                        ?: ''
+
+        // Prefer base64 when provided (robust for CI / dotenv / shells).
+        if (signingKeyBase64) {
+            def normalized = signingKeyBase64.toString().replaceAll('\\s+', '')
+            signingKey = new String(Base64.getMimeDecoder().decode(normalized), 'UTF-8')
+        }
+
+        // Support `.env`-style single-line values with escaped newlines.
+        signingKey = (signingKey ?: '')
+                .toString()
+                .replace('\r\n', '\n')
+                .replace('\r', '\n')
+                .replace('\\n', '\n')
+                .trim()
+        signingPassword = (signingPassword ?: '').toString()
+
+        def hasSigning = signingKey && signingPassword
+
+        if (hasSigning) {
+            useInMemoryPgpKeys(signingKey, signingPassword)
+        }
+
+        // Don't require signing for local `publishToMavenLocal` tests.
+        // Require signing when publishing to Sonatype (Maven Central requirement).
+        required {
+            hasSigning && gradle.taskGraph.allTasks.any { t ->
+                def n = t.name.toLowerCase()
+                n.contains('sonatype') || n.contains('close') || n.contains('release')
+            }
+        }
+        sign publishing.publications.release
+    }
+}

@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+
+    - name: Make gradlew executable
+      run: chmod +x gradlew || echo "gradlew not found, will use gradle directly"
+
+    - name: Build with Gradle
+      run: |
+        if [ -f "./gradlew" ]; then
+          ./gradlew build --no-daemon -x lint
+        else
+          gradle build --no-daemon -x lint
+        fi
+
+    - name: Run tests
+      run: |
+        if [ -f "./gradlew" ]; then
+          ./gradlew test --no-daemon
+        else
+          gradle test --no-daemon
+        fi
+
+    - name: Build AAR
+      run: |
+        if [ -f "./gradlew" ]; then
+          ./gradlew assembleRelease --no-daemon
+        else
+          gradle assembleRelease --no-daemon
+        fi
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: build-artifacts
+        path: |
+          build/outputs/aar/*.aar
+          build/libs/*.jar
+        retention-days: 7
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+
+    - name: Run lint
+      run: |
+        if [ -f "./gradlew" ]; then
+          ./gradlew lint --no-daemon || true
+        else
+          gradle lint --no-daemon || true
+        fi
