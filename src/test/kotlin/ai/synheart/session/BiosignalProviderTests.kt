@@ -84,7 +84,7 @@ class BiosignalProviderTests {
     @Test
     fun testEngineWithTestProviderReceivesSamplesInBuffer() {
         val provider = TestBiosignalProvider()
-        val engine = SessionEngine(provider)
+        val engine = SynheartSession(provider)
         val config = SessionConfig(
             sessionId = "provider-test",
             mode = SessionMode.FOCUS,
@@ -93,7 +93,7 @@ class BiosignalProviderTests {
         )
 
         val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         assertTrue(provider.streaming)
 
@@ -106,7 +106,8 @@ class BiosignalProviderTests {
         // Advance looper to trigger frame emission
         ShadowLooper.idleMainLooper(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
 
-        engine.stop("provider-test")
+        engine.stopSession("provider-test")
+        events.addAll(flow.replayCache.map { it.toMap() })
         assertFalse(provider.streaming)
 
         assertEquals("session_started", events.first()["type"])
@@ -124,15 +125,15 @@ class BiosignalProviderTests {
     fun testEngineEmitsSessionErrorOnProviderFailure() {
         val provider = TestBiosignalProvider()
         provider.isAvailable = false
-        val engine = SessionEngine(provider)
+        val engine = SynheartSession(provider)
         val config = SessionConfig(
             sessionId = "error-test",
             mode = SessionMode.FOCUS,
             durationSec = 60
         )
 
-        val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
+        val events = flow.replayCache.map { it.toMap() }
 
         val errors = events.filter { it["type"] == "session_error" }
         assertEquals(1, errors.size)
@@ -144,7 +145,7 @@ class BiosignalProviderTests {
 
     @Test
     fun testDefaultInitUsesMockProvider() {
-        val engine = SessionEngine()
+        val engine = SynheartSession()
         val config = SessionConfig(
             sessionId = "default-test",
             mode = SessionMode.FOCUS,
@@ -153,12 +154,13 @@ class BiosignalProviderTests {
         )
 
         val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         // Advance looper for a frame
         ShadowLooper.idleMainLooper(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
 
-        engine.stop("default-test")
+        engine.stopSession("default-test")
+        events.addAll(flow.replayCache.map { it.toMap() })
 
         val frames = events.filter { it["type"] == "session_frame" }
         assertTrue(frames.isNotEmpty())

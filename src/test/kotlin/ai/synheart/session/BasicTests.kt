@@ -64,7 +64,7 @@ class BasicTests {
             Pair(2000L, 74.0),
             Pair(3000L, 70.0)
         )
-        val metrics = SessionEngine.computeMetrics(samples)
+        val metrics = SynheartSession.computeMetrics(samples)
 
         assertNotNull(metrics["hr_mean_bpm"])
         assertNotNull(metrics["hr_sdnn_ms"])
@@ -76,7 +76,7 @@ class BasicTests {
 
     @Test
     fun testComputeMetricsEmpty() {
-        val metrics = SessionEngine.computeMetrics(emptyList())
+        val metrics = SynheartSession.computeMetrics(emptyList())
 
         assertEquals(0.0, metrics["hr_mean_bpm"])
         assertEquals(0.0, metrics["hr_sdnn_ms"])
@@ -98,7 +98,7 @@ class BasicTests {
             "hrv.rmssd_ms" to 38.1,
             "hrv.pnn50" to 21.3
         )
-        val metrics = SessionEngine.computeMetrics(samples, hsiMetrics)
+        val metrics = SynheartSession.computeMetrics(samples, hsiMetrics)
 
         assertEquals(42.5, metrics["hr_sdnn_ms"])
         assertEquals(38.1, metrics["rmssd_ms"])
@@ -113,7 +113,7 @@ class BasicTests {
             Pair(1000L, 72.0),
             Pair(2000L, 74.0)
         )
-        val metrics = SessionEngine.computeMetrics(samples, null)
+        val metrics = SynheartSession.computeMetrics(samples, null)
 
         assertEquals(0.0, metrics["hr_sdnn_ms"])
         assertEquals(0.0, metrics["rmssd_ms"])
@@ -127,51 +127,51 @@ class EngineTests {
 
     @Test
     fun testIngestHsiMetricsStoresOnEngine() {
-        val engine = SessionEngine()
+        val engine = SynheartSession()
         val hsiMetrics = mapOf<String, Any>(
             "hrv.sdnn_ms" to 50.0,
             "hrv.rmssd_ms" to 45.0,
             "hrv.pnn50" to 25.0
         )
-        // Should not throw
-        engine.ingestHsiMetrics(hsiMetrics)
+        // No-op when no session is active — must not throw.
+        engine.ingestHsiMetrics("any-id", hsiMetrics)
     }
 
     @Test(expected = SessionError.InvalidState::class)
     fun testEngineRejectsDuplicate() {
-        val engine = SessionEngine()
+        val engine = SynheartSession()
         val config = SessionConfig(
             sessionId = "dup-test",
             mode = SessionMode.FOCUS,
             durationSec = 60
         )
 
-        engine.start(config) { }
-        engine.start(config) { }
+        engine.startSession(config)
+        engine.startSession(config)
     }
 
     @Test
     fun testEngineGetStatusNilWhenIdle() {
-        val engine = SessionEngine()
+        val engine = SynheartSession()
         assertNull(engine.getStatus())
     }
 
     @Test
     fun testEngineGetStatusActiveWhenRunning() {
-        val engine = SessionEngine()
+        val engine = SynheartSession()
         val config = SessionConfig(
             sessionId = "status-test",
             mode = SessionMode.FOCUS,
             durationSec = 60
         )
 
-        engine.start(config) { }
+        engine.startSession(config)
 
         val status = engine.getStatus()
         assertNotNull(status)
-        assertEquals("status-test", status!!["session_id"])
-        assertEquals(true, status["active"])
+        assertEquals("status-test", status!!.sessionId)
+        assertTrue(status.active)
 
-        engine.stop("status-test")
+        engine.stopSession("status-test")
     }
 }

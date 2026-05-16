@@ -48,17 +48,17 @@ class HealthConnectBiosignalProviderTests {
     @Test
     fun testEngineHandlesHealthConnectProviderError() {
         val provider = HealthConnectBiosignalProvider(Object(), context)
-        val engine = SessionEngine(provider)
+        val engine = SynheartSession(provider)
         val config = SessionConfig(
             sessionId = "hc-error-test",
             mode = SessionMode.FOCUS,
             durationSec = 60
         )
 
-        val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         // Engine should emit session_error because provider is unavailable
+        val events = flow.replayCache.map { it.toMap() }
         val errors = events.filter { it["type"] == "session_error" }
         assertEquals(1, errors.size)
         assertEquals("sensor_unavailable", errors[0]["error_code"])

@@ -96,7 +96,7 @@ class BehaviorEngineIntegrationTests {
     fun testSnapshotToMap() {
         val behaviorProvider = TestBehaviorProvider()
         val biosignalProvider = StubBiosignalProvider()
-        val engine = SessionEngine(biosignalProvider, behaviorProvider)
+        val engine = SynheartSession(biosignalProvider, behaviorProvider)
 
         val config = SessionConfig(
             sessionId = "snapshot-map-test",
@@ -106,14 +106,15 @@ class BehaviorEngineIntegrationTests {
         )
 
         val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         val baseTs = System.currentTimeMillis()
         biosignalProvider.emit(72.0, baseTs)
 
         ShadowLooper.idleMainLooper(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
 
-        engine.stop("snapshot-map-test")
+        engine.stopSession("snapshot-map-test")
+        events.addAll(flow.replayCache.map { it.toMap() })
 
         val frames = events.filter { it["type"] == "session_frame" }
         assertTrue(frames.isNotEmpty())
@@ -140,7 +141,7 @@ class BehaviorEngineIntegrationTests {
     fun testEngineWithBehaviorIncludesBehaviorInFrame() {
         val behaviorProvider = TestBehaviorProvider()
         val biosignalProvider = StubBiosignalProvider()
-        val engine = SessionEngine(biosignalProvider, behaviorProvider)
+        val engine = SynheartSession(biosignalProvider, behaviorProvider)
 
         val config = SessionConfig(
             sessionId = "behavior-frame-test",
@@ -150,7 +151,7 @@ class BehaviorEngineIntegrationTests {
         )
 
         val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         val baseTs = System.currentTimeMillis()
         biosignalProvider.emit(72.0, baseTs)
@@ -158,7 +159,8 @@ class BehaviorEngineIntegrationTests {
 
         ShadowLooper.idleMainLooper(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
 
-        engine.stop("behavior-frame-test")
+        engine.stopSession("behavior-frame-test")
+        events.addAll(flow.replayCache.map { it.toMap() })
 
         val frames = events.filter { it["type"] == "session_frame" }
         assertTrue(frames.isNotEmpty())
@@ -168,7 +170,7 @@ class BehaviorEngineIntegrationTests {
     @Test
     fun testEngineWithoutBehaviorOmitsBehaviorKey() {
         val biosignalProvider = StubBiosignalProvider()
-        val engine = SessionEngine(biosignalProvider)
+        val engine = SynheartSession(biosignalProvider)
 
         val config = SessionConfig(
             sessionId = "no-behavior-test",
@@ -178,14 +180,15 @@ class BehaviorEngineIntegrationTests {
         )
 
         val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         val baseTs = System.currentTimeMillis()
         biosignalProvider.emit(72.0, baseTs)
 
         ShadowLooper.idleMainLooper(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
 
-        engine.stop("no-behavior-test")
+        engine.stopSession("no-behavior-test")
+        events.addAll(flow.replayCache.map { it.toMap() })
 
         val frames = events.filter { it["type"] == "session_frame" }
         assertTrue(frames.isNotEmpty())
@@ -197,7 +200,7 @@ class BehaviorEngineIntegrationTests {
         val behaviorProvider = TestBehaviorProvider()
         behaviorProvider.isAvailable = false
         val biosignalProvider = StubBiosignalProvider()
-        val engine = SessionEngine(biosignalProvider, behaviorProvider)
+        val engine = SynheartSession(biosignalProvider, behaviorProvider)
 
         val config = SessionConfig(
             sessionId = "unavail-behavior-test",
@@ -207,14 +210,15 @@ class BehaviorEngineIntegrationTests {
         )
 
         val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         val baseTs = System.currentTimeMillis()
         biosignalProvider.emit(72.0, baseTs)
 
         ShadowLooper.idleMainLooper(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
 
-        engine.stop("unavail-behavior-test")
+        engine.stopSession("unavail-behavior-test")
+        events.addAll(flow.replayCache.map { it.toMap() })
 
         val frames = events.filter { it["type"] == "session_frame" }
         assertTrue(frames.isNotEmpty())
@@ -225,7 +229,7 @@ class BehaviorEngineIntegrationTests {
     fun testSessionSummaryIncludesBehavior() {
         val behaviorProvider = TestBehaviorProvider()
         val biosignalProvider = StubBiosignalProvider()
-        val engine = SessionEngine(biosignalProvider, behaviorProvider)
+        val engine = SynheartSession(biosignalProvider, behaviorProvider)
 
         val config = SessionConfig(
             sessionId = "summary-behavior-test",
@@ -235,12 +239,13 @@ class BehaviorEngineIntegrationTests {
         )
 
         val events = mutableListOf<Map<String, Any>>()
-        engine.start(config) { events.add(it) }
+        val flow = engine.startSession(config)
 
         val baseTs = System.currentTimeMillis()
         biosignalProvider.emit(72.0, baseTs)
 
-        engine.stop("summary-behavior-test")
+        engine.stopSession("summary-behavior-test")
+        events.addAll(flow.replayCache.map { it.toMap() })
 
         val summaries = events.filter { it["type"] == "session_summary" }
         assertEquals(1, summaries.size)
