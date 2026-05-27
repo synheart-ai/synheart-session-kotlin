@@ -31,7 +31,7 @@ Standalone Kotlin SDK for Synheart Session — real-time session capture with on
 
 ```groovy
 dependencies {
-    implementation 'ai.synheart:synheart-session:0.2.0'
+    implementation 'ai.synheart:synheart-session:0.2.1'
 }
 ```
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-26
+
+### Added
+- `SynheartSession` facade + typed event stream (`SessionEvent`,
+  `SessionErrorEvent`, `SessionStatus`, `SessionSummary`) — API parity
+  with the Flutter SDK.
+
+### CI
+- All workflows opt into Node 24 (June 2026 deprecation prep).
+- `close-external-prs` org-membership check repaired.
+
+### Distribution
+- Maven Central: `ai.synheart:synheart-session:0.2.1`
+
 ## [0.2.0] - 2026-05-15
 
 Initial open-source release of the Synheart Session SDK for Android.
@@ -36,5 +50,6 @@ session events: `session_started`, `biosignal_frame`, `session_frame`,
 ### Distribution
 - Maven Central: `ai.synheart:synheart-session:0.2.0`
 
-[Unreleased]: https://github.com/synheart-ai/synheart-session-kotlin/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/synheart-ai/synheart-session-kotlin/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/synheart-ai/synheart-session-kotlin/releases/tag/v0.2.1
 [0.2.0]: https://github.com/synheart-ai/synheart-session-kotlin/releases/tag/v0.2.0
