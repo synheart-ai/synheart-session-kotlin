@@ -7,12 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Companion-watch sessions: `WatchSessionRelay` and `WatchStatus`.** Drives a
+  session on a paired Wear OS watch over the Wearable Data Layer — sends
+  `start_session` / `stop_session` on `/synheart/session/command` and streams the
+  watch's events back from `/synheart/session/event` as typed `SessionEvent`s.
+
+  This logic already existed, but only inside the cross-platform session
+  plugin's Android module, which declares no `maven-publish` — so it was compiled
+  into a plugin AAR that nothing could depend on. A native Android host,
+  and `synheart-core-kotlin`, had no way to run a watch session at all even
+  though the implementation worked and the companion watch app was already
+  listening on those paths. It belongs with the rest of the session SDK; the
+  that plugin should now consume it rather than carry its own copy, so the
+  two cannot drift.
+
+  Also carries `WatchHrSample` and `WatchSessionRelay.hrSamples()`: the watch
+  owns the PPG, so its readings are the phone's only biosignal source in this
+  arrangement. They arrive on `/synheart/session/hr_sample` independently of the
+  session flow — a reading must not be dropped because the two sides disagree
+  about session state.
+
+  `startSession` now gives up after 10s without an acknowledgement. Delivery to
+  the Data Layer is not delivery to an app: a node can accept the message while
+  no app there answers it, because the Data Layer requires a matching package
+  name AND signature. Without the timeout the phone's session stayed "active"
+  for the life of the process and every later start was refused.
+
+  The Data Layer behaviour is unchanged, including both message paths. The
+  callback API became a `Flow<SessionEvent>` that completes on the watch's
+  terminal event, and `getStatus`'s callback became a `suspend fun status()`.
+
+  `play-services-wearable` is `compileOnly`: a phone-only host should not be made
+  to ship Play Services, and `WatchStatus.supported` already reports false when
+  it is absent.
+
 ## [0.2.1] - 2026-05-26
 
 ### Added
 - `SynheartSession` facade + typed event stream (`SessionEvent`,
   `SessionErrorEvent`, `SessionStatus`, `SessionSummary`) — API parity
-  with the Flutter SDK.
+  with the sibling platform SDKs.
 
 ### CI
 - All workflows opt into Node 24 (June 2026 deprecation prep).

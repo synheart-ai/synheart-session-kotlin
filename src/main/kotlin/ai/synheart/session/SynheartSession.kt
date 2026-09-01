@@ -12,9 +12,8 @@ import kotlin.math.round
  * buffers samples in a sliding window, and emits typed [SessionEvent]s with
  * computed metrics on a [Flow].
  *
- * Mirrors the Flutter sibling `SynheartSession` and the Swift sibling
- * `SynheartSession`. The on-the-wire shape (returned by [SessionEvent.toMap])
- * is identical across all three SDKs.
+ * The on-the-wire shape (returned by [SessionEvent.toMap]) is identical across
+ * every platform SDK.
  */
 class SynheartSession(
     private val provider: BiosignalProvider = MockBiosignalProvider(),
@@ -55,8 +54,8 @@ class SynheartSession(
      * is true, `BiosignalFrame` events interleave between session frames.
      *
      * Eagerly starts the biosignal provider and emission timers; callers
-     * that subscribe late will miss earlier events (mirroring Flutter's
-     * stream semantics).
+     * that subscribe late will miss earlier events, matching the stream
+     * semantics the sibling SDKs use.
      *
      * @throws SessionError.InvalidState if a session is already running or
      *   the instance has been disposed.
