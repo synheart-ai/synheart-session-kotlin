@@ -8,6 +8,8 @@ import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
@@ -28,13 +30,13 @@ import org.json.JSONObject
  *
  * ## Where this came from
  *
- * This logic previously lived only inside `synheart-session-flutter`'s Android
- * plugin, so it was compiled into a Flutter plugin AAR that nothing could depend
- * on — that module declares no `maven-publish`. A native Android host, and
+ * This logic previously lived only inside the cross-platform session plugin's
+ * Android module, which declares no `maven-publish` — so it was compiled into a
+ * plugin AAR that nothing could depend on. A native Android host, and
  * `synheart-core-kotlin`, therefore had no way to run a watch session at all,
  * even though the implementation existed and worked. It belongs here, with the
- * rest of the session SDK, and the Flutter plugin should consume it rather than
- * carry its own copy.
+ * rest of the session SDK, and that plugin should consume it rather than carry
+ * its own copy.
  *
  * The callback API it had there is replaced with a [Flow]; the Data Layer
  * behaviour is otherwise unchanged, including the message paths, which the
@@ -45,14 +47,7 @@ class WatchSessionRelay(private val context: Context) {
     private val messageClient: MessageClient by lazy { Wearable.getMessageClient(context) }
     private val nodeClient by lazy { Wearable.getNodeClient(context) }
 
-    @Volatile
-    private var activeSession: String? = null
-
-    /** The running watch session, or null. */
-    val activeSessionId: String? get() = activeSession
-
-    /** Whether a watch session is currently running. */
-    val isActive: Boolean get() = activeSession != null
+    private var acknowledged: kotlinx.coroutines.Job? = null
 
     // ── Status ───────────────────────────────────────────────────────────
 
@@ -77,8 +72,44 @@ class WatchSessionRelay(private val context: Context) {
         )
     }
 
-    /** Whether at least one Wear OS node is connected. */
-    suspend fun isReachable(): Boolean = status().reachable
+    // ── Biosignals from the watch ────────────────────────────────────────
+
+    /**
+     * Heart-rate samples the watch measured.
+     *
+     * Separate from [startSession]'s event flow, and independent of it: the
+     * watch owns the sensor, and its readings are the phone's only biosignal
+     * source in this arrangement — the phone has no PPG. A host forwards these
+     * into the engine so HSI has physiology to work with; without that the five
+     * canonical axes stay at zero confidence no matter how long the watch
+     * measures.
+     *
+     * Emits whenever a sample arrives, session or not. Nothing here interprets
+     * the values.
+     */
+    fun hrSamples(): Flow<WatchHrSample> = callbackFlow {
+        if (!isPlayServicesAvailable()) {
+            close()
+            return@callbackFlow
+        }
+
+        val listener = MessageClient.OnMessageReceivedListener { event ->
+            if (event.path != HR_SAMPLE_PATH) return@OnMessageReceivedListener
+            val sample = runCatching {
+                val json = JSONObject(String(event.data, Charsets.UTF_8))
+                WatchHrSample(
+                    timestampMs = json.optLong("ts_ms", System.currentTimeMillis()),
+                    bpm = json.getDouble("bpm"),
+                )
+            }.onFailure { Log.w(TAG, "unparseable hr sample: ${it.message}") }
+                .getOrNull() ?: return@OnMessageReceivedListener
+
+            trySend(sample)
+        }
+
+        messageClient.addListener(listener)
+        awaitClose { messageClient.removeListener(listener) }
+    }
 
     // ── Session ──────────────────────────────────────────────────────────
 
@@ -114,6 +145,8 @@ class WatchSessionRelay(private val context: Context) {
                 Log.w(TAG, "could not decode watch event: ${it.message}")
             }.getOrNull() ?: return@OnMessageReceivedListener
 
+            // Any event means the companion is alive; stop the timeout.
+            acknowledged?.cancel()
             trySend(decoded)
             // The watch owns the session lifecycle; these are the two events
             // after which it sends nothing more.
@@ -123,7 +156,6 @@ class WatchSessionRelay(private val context: Context) {
         }
 
         messageClient.addListener(listener)
-        activeSession = config.sessionId
 
         val delivered = broadcast(startCommand(config))
         if (!delivered) {
@@ -135,11 +167,39 @@ class WatchSessionRelay(private val context: Context) {
                 ),
             )
             close()
+            return@callbackFlow
         }
 
+        // Delivery to the Data Layer is not delivery to an app. A node can be
+        // connected and accept the message while no app there answers it — a
+        // companion that is not installed, or one whose package or signature
+        // differs, which the Data Layer requires to match. The system logs
+        // "Failed to deliver message to AppKey" and the phone hears nothing
+        // back, forever.
+        //
+        // Without this the session stays "active" for the life of the process,
+        // and every later start is refused against a session that was never
+        // running.
+        val ack = launch {
+            delay(START_ACK_TIMEOUT_MS)
+            trySend(
+                SessionErrorEvent(
+                    sessionId = config.sessionId,
+                    code = SessionErrorCode.SENSOR_UNAVAILABLE,
+                    message = "The watch did not acknowledge within " +
+                        "${START_ACK_TIMEOUT_MS / 1000}s. Check that the companion app " +
+                        "is installed and shares this app's package name and signature — " +
+                        "the Data Layer delivers only between matching apps.",
+                ),
+            )
+            close()
+        }
+        acknowledged = ack
+
         awaitClose {
+            acknowledged?.cancel()
+            acknowledged = null
             messageClient.removeListener(listener)
-            activeSession = null
         }
     }
 
@@ -157,7 +217,6 @@ class WatchSessionRelay(private val context: Context) {
                 put("session_id", sessionId)
             },
         )
-        if (activeSession == sessionId) activeSession = null
     }
 
     // ── Internals ────────────────────────────────────────────────────────
@@ -199,9 +258,26 @@ class WatchSessionRelay(private val context: Context) {
         return anyDelivered
     }
 
-    private fun isPlayServicesAvailable(): Boolean =
+    /**
+     * Whether the Data Layer can be used at all.
+     *
+     * Catches [LinkageError] as well as the ordinary failure: `play-services-
+     * wearable` is a `compileOnly` dependency here, so a consumer that did not
+     * supply it at runtime gets a `NoClassDefFoundError` on the first Wearable
+     * touch. Letting that propagate turns a missing dependency into a crash deep
+     * inside a session start; reporting "unsupported" instead matches what
+     * [WatchStatus.supported] already means and keeps the failure legible.
+     */
+    private fun isPlayServicesAvailable(): Boolean = try {
         GoogleApiAvailability.getInstance()
             .isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
+    } catch (e: LinkageError) {
+        Log.w(TAG, "Wearable Data Layer classes are absent: ${e.message}")
+        false
+    } catch (e: Exception) {
+        Log.w(TAG, "Play services check failed: ${e.message}")
+        false
+    }
 
     internal companion object {
         private const val TAG = "WatchSessionRelay"
@@ -211,6 +287,18 @@ class WatchSessionRelay(private val context: Context) {
 
         /** Phone → watch. The companion app listens here. */
         const val COMMAND_PATH = "/synheart/session/command"
+
+        /** Watch → phone. One heart-rate sample per message. */
+        const val HR_SAMPLE_PATH = "/synheart/session/hr_sample"
+
+        /**
+         * How long to wait for the watch's first event before giving up.
+         *
+         * Generous: the system may need to cold-start the companion's listener
+         * service, and the session engine emits `SessionStarted` immediately
+         * after that.
+         */
+        const val START_ACK_TIMEOUT_MS = 10_000L
 
         /** Recursive JSON → Map, so [SessionEvent.fromMap] can consume it. */
         internal fun jsonToMap(json: JSONObject): Map<String, Any> {

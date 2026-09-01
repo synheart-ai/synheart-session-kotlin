@@ -3,7 +3,7 @@ package ai.synheart.session
 /**
  * Immutable snapshot of companion-watch connectivity (Wear OS).
  *
- * The wire shape is shared with the Flutter and Swift siblings:
+ * The wire shape is shared across the platform SDKs:
  * `{ supported, reachable, paired, installed }`.
  */
 data class WatchStatus(
@@ -36,22 +36,8 @@ data class WatchStatus(
     /** True when a session command would actually reach a watch. */
     val canStartSession: Boolean get() = supported && reachable
 
-    fun toMap(): Map<String, Any> = mapOf(
-        "supported" to supported,
-        "reachable" to reachable,
-        "paired" to paired,
-        "installed" to installed,
-    )
-
     companion object {
         /** Nothing connected, and the transport may not even exist. */
         val UNAVAILABLE = WatchStatus()
-
-        fun fromMap(map: Map<String, Any?>): WatchStatus = WatchStatus(
-            supported = map["supported"] as? Boolean ?: false,
-            reachable = map["reachable"] as? Boolean ?: false,
-            paired = map["paired"] as? Boolean ?: false,
-            installed = map["installed"] as? Boolean ?: false,
-        )
     }
 }

@@ -7,7 +7,7 @@ package ai.synheart.session
  * (or terminating `SessionError`). When raw samples are requested,
  * `BiosignalFrame` events interleave between session frames.
  *
- * Mirrors the Flutter / Swift sibling SDKs' `SessionEvent`. The wire format
+ * Shared `SessionEvent` shape across the platform SDKs. The wire format
  * (returned by [toMap]) uses snake_case keys identical across all three.
  */
 sealed class SessionEvent {

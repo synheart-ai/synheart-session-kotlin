@@ -10,8 +10,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Covers the watch-session pieces extracted from `synheart-session-flutter`'s
- * Android plugin, where they were compiled into a Flutter plugin AAR that
+ * Covers the watch-session pieces extracted from the cross-platform session
+ * plugin's Android module, where they were compiled into a plugin AAR that
  * nothing could depend on.
  *
  * The Data Layer itself needs a paired watch and cannot be exercised here, so
@@ -40,26 +40,6 @@ class WatchSessionTests {
         val status = WatchStatus(supported = true, reachable = false)
         assertTrue(status.supported)
         assertFalse(status.canStartSession)
-    }
-
-    @Test
-    fun `status round-trips through its wire map`() {
-        val original = WatchStatus(
-            supported = true,
-            reachable = true,
-            paired = true,
-            installed = true,
-        )
-        assertEquals(original, WatchStatus.fromMap(original.toMap()))
-    }
-
-    @Test
-    fun `a partial status map defaults the missing keys to false`() {
-        // The watch app is a separate binary on its own release cadence; a map
-        // missing a key must not throw.
-        val status = WatchStatus.fromMap(mapOf("supported" to true))
-        assertTrue(status.supported)
-        assertFalse(status.reachable)
     }
 
     // ── Event decode ─────────────────────────────────────────────────────
