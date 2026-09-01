@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Companion-watch sessions: `WatchSessionRelay` and `WatchStatus`.** Drives a
+  session on a paired Wear OS watch over the Wearable Data Layer — sends
+  `start_session` / `stop_session` on `/synheart/session/command` and streams the
+  watch's events back from `/synheart/session/event` as typed `SessionEvent`s.
+
+  This logic already existed, but only inside `synheart-session-flutter`'s
+  Android plugin, whose module declares no `maven-publish` — so it was compiled
+  into a Flutter plugin AAR that nothing could depend on. A native Android host,
+  and `synheart-core-kotlin`, had no way to run a watch session at all even
+  though the implementation worked and the companion watch app was already
+  listening on those paths. It belongs with the rest of the session SDK; the
+  Flutter plugin should now consume it rather than carry its own copy, so the
+  two cannot drift.
+
+  The Data Layer behaviour is unchanged, including both message paths. The
+  callback API became a `Flow<SessionEvent>` that completes on the watch's
+  terminal event, and `getStatus`'s callback became a `suspend fun status()`.
+
+  `play-services-wearable` is `compileOnly`: a phone-only host should not be made
+  to ship Play Services, and `WatchStatus.supported` already reports false when
+  it is absent.
+
 ## [0.2.1] - 2026-05-26
 
 ### Added
