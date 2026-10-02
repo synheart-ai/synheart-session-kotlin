@@ -13,6 +13,8 @@ class BasicTests {
         assertEquals("breathing", SessionMode.BREATHING.value)
         assertEquals(SessionMode.FOCUS, SessionMode.fromString("focus"))
         assertEquals(SessionMode.BREATHING, SessionMode.fromString("breathing"))
+        assertEquals("typing", SessionMode.TYPING.value)
+        assertEquals(SessionMode.TYPING, SessionMode.fromString("typing"))
         assertNull(SessionMode.fromString("invalid"))
     }
 

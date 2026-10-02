@@ -5,6 +5,17 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.4.0] - 2026-10-02
+
+Minor bump, not a patch: a new `SessionMode` value breaks an exhaustive
+`when` over it.
+
+### Added
+
+- `SessionMode.TYPING` (`"typing"`).
+
 ## [0.3.0] - 2026-09-01
 
 ### Added
@@ -88,6 +99,7 @@ session events: `session_started`, `biosignal_frame`, `session_frame`,
 ### Distribution
 - Maven Central: `ai.synheart:synheart-session:0.2.0`
 
+[0.4.0]: https://github.com/synheart-ai/synheart-session-kotlin/releases/tag/v0.4.0
 [0.3.0]: https://github.com/synheart-ai/synheart-session-kotlin/releases/tag/v0.3.0
 [0.2.1]: https://github.com/synheart-ai/synheart-session-kotlin/releases/tag/v0.2.1
 [0.2.0]: https://github.com/synheart-ai/synheart-session-kotlin/releases/tag/v0.2.0

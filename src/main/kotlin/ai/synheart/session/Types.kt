@@ -3,7 +3,10 @@ package ai.synheart.session
 /** Session mode matching the wire protocol values. */
 enum class SessionMode(val value: String) {
     FOCUS("focus"),
-    BREATHING("breathing");
+    BREATHING("breathing"),
+
+    /** A typing session: the host brackets a keyboard lifecycle with a watch session. */
+    TYPING("typing");
 
     companion object {
         fun fromString(value: String): SessionMode? =
