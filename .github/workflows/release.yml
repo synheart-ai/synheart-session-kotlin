@@ -8,6 +8,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
+# Read-only token: publishing uses its own secrets, not GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build and Validate Release
